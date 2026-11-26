@@ -1,0 +1,121 @@
+# Problem-discovery configuration.
+# Every threshold and weight below is a PROPOSAL for Service Operations to agree,
+# not an approved operational setting (see the brief: "proposals until approved").
+method_version: "0.2.0"
+
+# ---------------------------------------------------------------- data sources
+# Each source maps its own raw data onto the shared incident table. Source blocks
+# override the shared settings below (window, detectors, gaps, validation label).
+sources:
+  uci:
+    description: "UCI ServiceNow incident event log (anonymised, 2016)"
+    raw: data/raw/uci/incident_event_log.csv
+    analysis_window:
+      start: "2016-02-29"
+      # last complete Mon-Sun week. opened_at after this is a partial week (May 30-31)
+      # or sparse tail data (Jun 2016 - Feb 2017); reported as a coverage gap, not analysed
+      end: "2016-05-29 23:59"
+    # Columns that identify people. Dropped before any output: the analysis is about
+    # services, never individual employees or callers.
+    personal_columns: [caller_id, opened_by, sys_created_by, sys_updated_by, assigned_to, resolved_by]
+    detectors: [recurring, localised, burst, emerging]
+    # descriptive dashboard tables (insight_*.csv), full runs only
+    insights: [sla, problem_links, change_links]
+    has_known_problems: true
+    validation_label: has_known_problem
+    validation_label_name: "linked to a known Problem"
+    evidence_gaps:
+      - "no configuration-item data (99.8% missing)"
+      - "no business-impact/criticality data - impact uses ticket priority only"
+      - "anonymised categories - free-text descriptions not available"
+
+  mendeley:
+    description: "Mendeley Help Desk Tickets, international software company (masked, 2007-2023)"
+    raw_issues: data/raw/mendeley/issues.csv
+    raw_history: data/raw/mendeley/issues_change_history.csv
+    # Customer tickets only. Stories, epics, sub-tasks, vacation etc. are development or
+    # admin work, not incidents; service requests are normal demand.
+    issue_types: [Ticket]
+    analysis_window:
+      # priority is 'unknown' for every ticket before 2019 and fully populated from 2021,
+      # so the window starts there. End = last complete Mon-Sun week in the extract.
+      start: "2021-01-04"
+      end: "2023-03-12 23:59"
+    # Clients are nested inside one product/country by construction, so "concentrated at
+    # one location" would only reflect structure, not a shared cause -> localised is off.
+    detectors: [recurring, burst, emerging]
+    insights: [resolution_patterns, handoffs]
+    has_known_problems: false
+    # 'Duplicate' = someone else had already reported the same issue: partial ground truth
+    # for "incidents that share a cause". Used ONLY for validation, never as a signal.
+    validation_label: is_duplicate
+    validation_label_name: "closed as Duplicate"
+    evidence_gaps:
+      - "no SLA field - SLA signal unavailable"
+      - "no category/CI - service = project code (product / country / client)"
+      - "no known-Problem or change records"
+      - "no impact field - impact uses ticket priority only"
+      - "ticket text only available for a small sample"
+
+# ---------------------------------------------------------------- detectors
+candidates:
+  # False-discovery-rate control (Benjamini-Hochberg) across all tests a detector
+  # runs in one refresh. Hundreds of signature/signal tests are run each time, so a
+  # plain p<0.01 cut-off lets chance patterns through.
+  fdr_alpha: 0.05
+  # Recurring: a service signature whose incidents show rework or failure signals
+  # beyond the overall baseline.
+  recurring:
+    min_incidents: 15
+    lift_threshold: 1.5          # signal rate >= 1.5x global rate
+    min_signal_incidents: 5      # and that signal occurs on >= 5 incidents
+  # Localised: signature concentrated in one location far above what its overall
+  # volume would predict -> possible shared local cause.
+  localised:
+    min_incidents: 8
+    min_share_of_signature: 0.25   # location holds >=25% of the signature's incidents
+    min_lift_vs_location_mix: 3.0  # and that is >=3x the location's share of all incidents
+  # Burst: many incidents of one signature at one location in a short window.
+  burst:
+    window_hours: 24
+    min_incidents: 8
+    # Poisson test assumes evenly spread arrivals; real tickets cluster in office
+    # hours/weekdays, so the p-value is optimistic -> strict cut-off
+    max_p_value: 1.0e-6
+    # bursts of different signatures at the same location overlapping in time are
+    # linked as one possible shared event
+    co_occurrence_hours: 6
+  # Emerging: weekly volume of a signature rising over the recent weeks.
+  emerging:
+    recent_weeks: 3
+    min_recent_incidents: 10
+    min_rate_ratio: 2.0           # recent weekly rate >= 2x earlier weekly rate
+    max_q_value: 0.01             # one-sided Poisson test, BH-adjusted
+
+# ---------------------------------------------------------------- prioritisation
+# Investigation priority = weighted sum of factor scores, each scaled 0-1.
+# Confidence is computed separately and NEVER folded into priority, so a
+# high-impact but uncertain candidate is surfaced for validation, not discarded.
+priority_weights:
+  impact: 0.30          # share of high/critical priority + high impact incidents
+  recurrence: 0.20      # incidents and distinct callers affected (log-scaled)
+  deterioration: 0.20   # recent trend vs earlier weeks
+  burden: 0.30          # reopens, reassignments, SLA misses, resolution hours (those the source has)
+
+# Impact is scored on an absolute scale an Operations Manager can read:
+# a candidate where this share of tickets is P1/P2 (or high impact) scores full impact.
+impact_saturation: 0.25
+
+# The backlog shows one entry per category/subcategory "family"; nested and
+# sibling candidates are listed as related, not repeated.
+backlog_dedupe_by: family
+
+confidence:
+  # inputs to the evidence-confidence rating (High / Medium / Low)
+  min_incidents_high: 30
+  min_incidents_medium: 10
+
+escalation:
+  # proposed routing only; nothing is created or changed automatically
+  min_priority_score: 0.45
+  route_to: dominant_assignment_group

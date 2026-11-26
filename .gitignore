@@ -1,0 +1,8 @@
+data/raw/
+data/history/
+outputs/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
