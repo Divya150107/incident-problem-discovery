@@ -1,4 +1,4 @@
-# Proactive Problem Discovery from Incident Data
+# Proactive Problem Discovery from IT Incidents
 
 **Can you find the problems we don't know we have?**
 A repeatable analysis that connects apparently separate incidents into evidence-backed
