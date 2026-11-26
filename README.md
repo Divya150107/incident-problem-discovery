@@ -115,7 +115,7 @@ raw data ──► source adapter ──► baseline ──► detectors ──�
 | Descriptive insights: SLA, problem/change links, workflow time, handoffs | `insights.py` | Phase 1–2 |
 | Text-analysis prototype vs non-AI baseline (synthetic, labelled) | `synthetic.py`, `textcluster.py` | Phase 3 (optional) |
 | Real-text similarity, clustering, category comparison (Zenodo) | `textreal.py` | Phase 3 (optional) |
-| Dashboard | `docs/POWERBI_GUIDE.md` | Phase 3 |
+| Dashboard | `ProblemInvestigation.pbix` | Phase 3 |
 
 ### Mapping each source to the shared model
 
@@ -296,7 +296,7 @@ python -m pytest -q
 ```
 
 Then open `ProblemInvestigation.pbix` in Power BI Desktop and refresh it (see "Dashboard" above).
-Build notes are in [docs/POWERBI_GUIDE.md](docs/POWERBI_GUIDE.md); field definitions in [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md).
+Field definitions are in [docs/DATA_DICTIONARY.md](docs/DATA_DICTIONARY.md).
 
 ## Project layout
 
@@ -308,7 +308,7 @@ src/pdisc/              sources, ingest, baseline, candidates, register, evaluat
 tests/                  45 tests: detectors, FDR, register, lifecycle, review feedback, failure safety,
                         privacy, replay, Mendeley mapping, insights, synthetic and real text
 ProblemInvestigation.pbix  the Power BI report (Overview / Investigate / Data & Method)
-docs/                   data dictionary, Power BI build guide, dashboard screenshots
+docs/                   data dictionary, dashboard screenshots
 outputs/powerbi/<src>/  generated CSVs for the dashboard, incl. insight_*.csv (gitignored)
 outputs/text_zenodo/    real-text analysis tables (gitignored)
 ```
